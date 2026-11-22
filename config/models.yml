@@ -1,0 +1,15 @@
+# Model choice lives here, never in code. Names are Databricks Free Edition serving endpoints.
+# planner: default for the app. Picked on evals/results/planner.md (planner@1): 16/16 correct,
+# lowest median latency and output tokens. Re-pick whenever the golden set or prompt changes.
+planner: databricks-meta-llama-3-3-70b-instruct
+
+# Models compared by `python -m macrosql.plan_eval` when --models is not given.
+eval:
+  - databricks-meta-llama-3-3-70b-instruct
+  - databricks-llama-4-maverick
+  - databricks-meta-llama-3-1-8b-instruct
+  - databricks-gpt-oss-120b
+  - databricks-gpt-oss-20b
+  - databricks-qwen3-next-80b-a3b-instruct
+  - databricks-qwen35-122b-a10b
+  - databricks-gemma-3-12b

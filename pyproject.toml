@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Natural-language questions about Brazil's interest rates, inflation and public finances, answered by a governed metrics layer."
 requires-python = ">=3.11"
 dependencies = [
+    "databricks-sdk>=0.169.0",
     "duckdb>=1.0",
     "httpx>=0.27",
     "pydantic>=2.6",

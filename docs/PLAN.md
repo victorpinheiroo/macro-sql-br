@@ -23,6 +23,12 @@ antes de estender prazo.
   1737 publicado; Calculadora do Cidadão do BCB). Runner `python -m macrosql.golden` no CI sobre o
   snapshot `data/snapshot/obs.csv`. Caminho de métricas: **16/16 no DuckDB e 16/16 no Databricks
   SQL**, mesmos valores. Ainda sem LLM: mede só a metade determinística.
+- **Planejador LLM ponta a ponta** (semana 2): `LLMClient` neutro (`llm.py`) com cache em disco por
+  (versão do prompt, provedor, modelo, hash da entrada) e backoff em 429; prompt versionado
+  `prompts/planner.yml` (`planner@1`); `plan.py` valida a saída no schema e no catálogo; modelo
+  vem de `config/models.yml`. Resultado em `evals/results/planner.md`: 8 modelos gratuitos do
+  Databricks, todos com saída estruturada **constrained**; 7/8 acertam 16/16 o número; Llama 3.1
+  8B erra g05 (janela de 13 meses no "12 meses até outubro").
 
 ### Linha de base do verificador (dados sintéticos, 4 consultas-semente)
 
@@ -56,13 +62,23 @@ datas literais do SQL contra o período do plano.
 | Semana | Entrega | Critério de pronto |
 | --- | --- | --- |
 | 1 ✅ | Teste de rede → decidir onde roda a ingestão. Confirmar códigos SGS na fonte. Ingestão real + silver/gold. Golden set v1: 15 perguntas com oráculo externo; runner no CI | Parquet real lido pelo DuckDB; CI roda o golden set em todo PR |
-| 2 | `LLMClient` neutro + cache em disco; teste de saída estruturada nos modelos gratuitos; planejador + caminho de métricas ponta a ponta | Tabela: qual modelo devolve `Plan` válido e em que %; acurácia no golden set por modelo |
+| 2 ✅ | `LLMClient` neutro + cache em disco; teste de saída estruturada nos modelos gratuitos; planejador + caminho de métricas ponta a ponta | Tabela: qual modelo devolve `Plan` válido e em que %; acurácia no golden set por modelo |
 | 3 | SQL livre + guardrails ligados; checagem de período; regras de frequência e unidade; relatório de mutações com dados reais | Placar com recall e falso alarme sobre o golden set real |
 | 4 | Esclarecimento + confiança; golden set 30+; FastAPI + Streamlit + Docker; README com números; vídeo | `docker compose up` responde sem conta Databricks; manchete na primeira tela |
 
 **v1.1 (depois de publicado):** SIDRA, Tesouro, comparação com Genie, juro real ex-ante.
 
 ## Decisões pendentes
+
+- [ ] **Golden set v1 satura o planejador**: 7 de 8 modelos fazem 16/16. Não serve para escolher
+  modelo. Semana 3: perguntas com data relativa ("últimos 12 meses", "este ano", "mês passado"),
+  mês parcial, formulações sem palavra-chave ("quanto o dinheiro perdeu de valor em 2022"),
+  e perguntas fora do catálogo que devem ir para SQL livre ou esclarecimento.
+- [x] Saída estruturada: o Gemma 3 12B recusa `format: date` no JSON schema (xgrammar). O
+  `LLMClient` remove `title`/`format` do schema e cai para JSON no prompt se o provedor recusar.
+  Com isso os 8 modelos ficam em modo constrained.
+- [x] Limite de taxa da Free Edition: 429 depois de ~10 chamadas seguidas no mesmo endpoint.
+  Backoff exponencial (respeita `Retry-After`) resolve; zero erros de provedor nos 128 casos.
 
 - [x] Resultado do teste de rede → **ingestão no Databricks** (2026-11-22). Serverless da Free Edition
   alcança SGS (200), SIDRA `/values/...` (200), Tesouro Transparente (200) e PyPI (200). A raiz
