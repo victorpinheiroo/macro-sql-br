@@ -1,0 +1,4 @@
+series_id,metric,frequency,unit,last_complete_ref_date,collected_at,partial_points
+432,selic_meta,daily,percent_per_year,2026-11-22,2026-11-22 21:17:15.135356,0
+433,ipca,monthly,percent_per_month,2026-10-01,2026-11-22 21:17:15.135356,0
+4390,selic,monthly,percent_per_month,2026-10-01,2026-11-22 21:17:15.135356,1

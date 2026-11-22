@@ -14,10 +14,15 @@ antes de estender prazo.
 - Ingestão SGS → bronze Parquet append-only com `ingested_at` (`python -m macrosql.ingest`).
 - Teste de rede: `pipelines/00_egress_check.py` (rodar no Databricks).
 - 40 testes, todos com dados **sintéticos**.
-- **Bronze real no Databricks** (2026-11-22): Asset Bundle (`databricks.yml`) com job serverless
-  `ingest_sgs` agendado diariamente às 10h (BRT). Primeira carga: 10.468 linhas desde 2000-01-01
-  (432: 9.823 · 433: 322 · 4390: 323) em `<catalog>.<schema>.sgs_observations` + Parquet no volume
-  `landing`. IPCA set/out 2026 (0,82 / 0,14) confere com o IBGE (SIDRA tabela 1737).
+- **Pipeline real no Databricks** (2026-11-22): Asset Bundle (`databricks.yml`), job serverless
+  `sgs_pipeline` em prod agendado diariamente às 10h (BRT); dev só roda à mão.
+  bronze (append-only, `ingested_at`) → silver (último valor por ponto, `is_complete`) → gold
+  (`obs` + `series_status`) → Parquet no volume `exports`. Mesmo SQL em DuckDB e Databricks
+  (`transform.py`, sqlglot). Gold: 10.467 pontos desde 2000-01-01.
+- **Golden set v1**: 16 perguntas em `evals/golden.jsonl`, todas com oráculo externo (IBGE SIDRA
+  1737 publicado; Calculadora do Cidadão do BCB). Runner `python -m macrosql.golden` no CI sobre o
+  snapshot `data/snapshot/obs.csv`. Caminho de métricas: **16/16 no DuckDB e 16/16 no Databricks
+  SQL**, mesmos valores. Ainda sem LLM: mede só a metade determinística.
 
 ### Linha de base do verificador (dados sintéticos, 4 consultas-semente)
 
@@ -50,7 +55,7 @@ datas literais do SQL contra o período do plano.
 
 | Semana | Entrega | Critério de pronto |
 | --- | --- | --- |
-| 1 | Teste de rede → decidir onde roda a ingestão. Confirmar códigos SGS na fonte. Ingestão real + silver/gold. Golden set v1: 15 perguntas com oráculo externo; runner no CI | Parquet real lido pelo DuckDB; CI roda o golden set em todo PR |
+| 1 ✅ | Teste de rede → decidir onde roda a ingestão. Confirmar códigos SGS na fonte. Ingestão real + silver/gold. Golden set v1: 15 perguntas com oráculo externo; runner no CI | Parquet real lido pelo DuckDB; CI roda o golden set em todo PR |
 | 2 | `LLMClient` neutro + cache em disco; teste de saída estruturada nos modelos gratuitos; planejador + caminho de métricas ponta a ponta | Tabela: qual modelo devolve `Plan` válido e em que %; acurácia no golden set por modelo |
 | 3 | SQL livre + guardrails ligados; checagem de período; regras de frequência e unidade; relatório de mutações com dados reais | Placar com recall e falso alarme sobre o golden set real |
 | 4 | Esclarecimento + confiança; golden set 30+; FastAPI + Streamlit + Docker; README com números; vídeo | `docker compose up` responde sem conta Databricks; manchete na primeira tela |
@@ -70,6 +75,12 @@ datas literais do SQL contra o período do plano.
 - [ ] Confirmar códigos SGS: câmbio, dívida bruta e líquida.
 - [x] Janela sem dados: o SGS responde **404** `Value(s) not found`, não lista vazia. `sgs.fetch`
   trata como vazio; outro 404 continua levantando erro.
-- [ ] SGS 4390 (Selic acumulada no mês) inclui o **mês corrente parcial** (em 2026-11-22, nov = 0,66
-  com o mês pela metade). Silver precisa marcar mês incompleto; vira pergunta do golden set.
-- [ ] Confirmar quais acumulados o IBGE publica para usar como oráculo.
+- [x] SGS 4390 inclui o **mês corrente parcial** (em 2026-11-22, nov = 0,66 com o mês pela metade).
+  Silver marca `is_complete = false`; gold exclui. Falta a pergunta no golden set ("Selic de
+  novembro" deve virar esclarecimento ou aviso).
+- [x] Acumulados publicados pelo IBGE (SIDRA 1737): v63 mensal, v69 no ano, v2265 em 12 meses.
+- [x] Calculadora do Cidadão (Selic) **não conta a taxa do dia final**: 02/01–31/12/2024 dá 10,8255%;
+  01/01/2024–01/01/2025 dá 10,8760%. O oráculo usa a segunda convenção. Resta ±0,012 p.p. contra o
+  composto da 4390 (duas casas decimais por mês); tolerância 0,03 p.p. Achado para o README.
+- [ ] Tolerância do IPCA: 0,02 p.p. em acumulados (IBGE arredonda o índice; nós compomos variações
+  com duas casas). Maior desvio observado: 0,0052 (2022).
