@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import Counter
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -36,6 +37,9 @@ class GoldenCase(BaseModel):
     id: str
     question: str
     expected_path: Literal["metrics", "free_sql", "clarify"]
+    difficulty: Literal["basic", "hard"] = "basic"
+    # For relative questions ("últimos 12 meses", "hoje"): the date the question is asked.
+    as_of: date | None = None
     plan: Plan
     expected: dict[str, float]
     tolerance_pp: float

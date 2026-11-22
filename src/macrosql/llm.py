@@ -98,7 +98,13 @@ class DatabricksClient:
         """POST with backoff on 429/5xx: free-tier endpoints rate-limit aggressively."""
         url = f"{self._w.config.host}/serving-endpoints/{self.model}/invocations"
         for attempt in range(max_retries + 1):
-            resp = self._http.post(url, headers=self._w.config.authenticate(), json=payload)
+            try:
+                resp = self._http.post(url, headers=self._w.config.authenticate(), json=payload)
+            except httpx.TransportError:  # dropped connection, DNS blip
+                if attempt == max_retries:
+                    raise
+                time.sleep(min(2 ** (attempt + 1), 60))
+                continue
             if resp.status_code != 429 and resp.status_code < 500:
                 return resp
             if attempt == max_retries:

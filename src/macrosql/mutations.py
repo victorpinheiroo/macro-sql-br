@@ -100,12 +100,28 @@ def period_shift(plan, catalog):
     yield "period shifted by one month", shifted, catalog
 
 
+def window_off_by_one(plan, catalog):
+    """The 12-month trap: one extra month at the start (13 points instead of 12).
+
+    Skipped when every metric is a level ('last'): an earlier start does not change the answer,
+    so it would not be a mistake.
+    """
+    if all(catalog.get(n).aggregation == "last" for n in plan.metrics):
+        return
+    yield (
+        "window starts one month early",
+        Plan(metrics=plan.metrics, start=_shift_month(plan.start, -1), end=plan.end),
+        catalog,
+    )
+
+
 OPERATORS: dict[str, Operator] = {
     "rate_summed": rate_summed,
     "level_compounded": level_compounded,
     "series_swap": series_swap,
     "fisher_as_subtraction": fisher_as_subtraction,
     "period_shift": period_shift,
+    "window_off_by_one": window_off_by_one,
 }
 
 

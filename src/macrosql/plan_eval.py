@@ -46,13 +46,14 @@ def evaluate(model: str, cases, con, catalog, today, status, prompt, cache_dir) 
     rows = []
     for case in cases:
         try:
-            pr = make_plan(case.question, client, catalog, today, status, prompt)
+            pr = make_plan(case.question, client, catalog, case.as_of or today, status, prompt)
         except Exception as e:  # provider error = failed case, run continues
             rows.append(
                 {
                     "model": model,
                     "id": case.id,
                     "trap": case.trap,
+                    "difficulty": case.difficulty,
                     "valid": False,
                     "exact": False,
                     "correct": False,
@@ -67,6 +68,7 @@ def evaluate(model: str, cases, con, catalog, today, status, prompt, cache_dir) 
             "model": model,
             "id": case.id,
             "trap": case.trap,
+            "difficulty": case.difficulty,
             "valid": pr.plan is not None,
             "exact": pr.plan == case.plan,
             "correct": False,
@@ -89,13 +91,13 @@ def evaluate(model: str, cases, con, catalog, today, status, prompt, cache_dir) 
 
 def summarize(rows: list[dict], models: list[str], n_cases: int, prompt_key: str) -> str:
     out = [
-        f"Planner `{prompt_key}` on the golden set ({n_cases} questions, metrics path). "
+        f"Planner `{prompt_key}` on the golden set ({n_cases} questions, metrics path; "
+        "basic = v1, hard = relative dates, paraphrases, custom windows). "
         "Numbers are shares of questions.",
         "",
-        "| model | valid plan | exact plan | correct number | provider errors | "
-        "structured output | "
-        "median latency (s) | mean tokens in/out |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| model | correct: all | basic | hard | valid plan | exact plan | provider errors | "
+        "structured output | median latency (s) | mean tokens in/out |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for m in models:
         rs = [r for r in rows if r["model"] == m]
@@ -109,10 +111,16 @@ def summarize(rows: list[dict], models: list[str], n_cases: int, prompt_key: str
         tin = [r["input_tokens"] for r in rs if r.get("input_tokens")] or [0]
         tout = [r["output_tokens"] for r in rs if r.get("output_tokens")] or [0]
         median_s = f"{statistics.median(lat) / 1000:.1f}" if lat else "n/a"
+
+        def by(level: str, rs: list[dict] = rs) -> str:
+            sub = [r for r in rs if r.get("difficulty", "basic") == level]
+            return f"{sum(r['correct'] for r in sub)}/{len(sub)}"
+
         out.append(
-            f"| {m} | {pct('valid')} | {pct('exact')} | {pct('correct')} | "
-            f"{sum(bool(r.get('provider_error')) for r in rs)} | {', '.join(modes)} | "
-            f"{median_s} | {statistics.mean(tin):.0f} / {statistics.mean(tout):.0f} |"
+            f"| {m} | {pct('correct')} | {by('basic')} | {by('hard')} | {pct('valid')} | "
+            f"{pct('exact')} | {sum(bool(r.get('provider_error')) for r in rs)} | "
+            f"{', '.join(modes)} | {median_s} | "
+            f"{statistics.mean(tin):.0f} / {statistics.mean(tout):.0f} |"
         )
     misses = [r for r in rows if not r["correct"]]
     if misses:

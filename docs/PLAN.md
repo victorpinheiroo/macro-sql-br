@@ -29,6 +29,12 @@ antes de estender prazo.
   vem de `config/models.yml`. Resultado em `evals/results/planner.md`: 8 modelos gratuitos do
   Databricks, todos com saída estruturada **constrained**; 7/8 acertam 16/16 o número; Llama 3.1
   8B erra g05 (janela de 13 meses no "12 meses até outubro").
+- **Semana 3**: golden set com 31 perguntas (15 difíceis: datas relativas com `as_of`, paráfrases,
+  janelas fora do ano civil, oráculo por número-índice do IBGE). Caminho SQL livre
+  (`freesql.py`, prompt `freesql@1` só com dicionário de dados) + guardrails + DuckDB isolado
+  (acesso externo desligado, config travada, timeout). Verificador com 3ª camada, checagem de
+  período por AST. Placar: métricas 244/248 vs SQL livre 78/248; verificador 142/142 nas erradas
+  (119/142 sem o diferencial); red team 0 inseguras; mutações 114/114, 0/31 falso alarme.
 
 ### Linha de base do verificador (dados sintéticos, 4 consultas-semente)
 
@@ -63,17 +69,25 @@ datas literais do SQL contra o período do plano.
 | --- | --- | --- |
 | 1 ✅ | Teste de rede → decidir onde roda a ingestão. Confirmar códigos SGS na fonte. Ingestão real + silver/gold. Golden set v1: 15 perguntas com oráculo externo; runner no CI | Parquet real lido pelo DuckDB; CI roda o golden set em todo PR |
 | 2 ✅ | `LLMClient` neutro + cache em disco; teste de saída estruturada nos modelos gratuitos; planejador + caminho de métricas ponta a ponta | Tabela: qual modelo devolve `Plan` válido e em que %; acurácia no golden set por modelo |
-| 3 | SQL livre + guardrails ligados; checagem de período; regras de frequência e unidade; relatório de mutações com dados reais | Placar com recall e falso alarme sobre o golden set real |
+| 3 ✅ | SQL livre + guardrails ligados; checagem de período; regras de frequência e unidade; relatório de mutações com dados reais | Placar com recall e falso alarme sobre o golden set real |
 | 4 | Esclarecimento + confiança; golden set 30+; FastAPI + Streamlit + Docker; README com números; vídeo | `docker compose up` responde sem conta Databricks; manchete na primeira tela |
 
 **v1.1 (depois de publicado):** SIDRA, Tesouro, comparação com Genie, juro real ex-ante.
 
 ## Decisões pendentes
 
-- [ ] **Golden set v1 satura o planejador**: 7 de 8 modelos fazem 16/16. Não serve para escolher
-  modelo. Semana 3: perguntas com data relativa ("últimos 12 meses", "este ano", "mês passado"),
-  mês parcial, formulações sem palavra-chave ("quanto o dinheiro perdeu de valor em 2022"),
-  e perguntas fora do catálogo que devem ir para SQL livre ou esclarecimento.
+- [ ] **O planejador continua saturado** com 31 perguntas: 6 de 8 modelos fazem 31/31. Erros reais
+  vistos: Llama 3.1 8B põe "este ano" em 2022 e usa 13 meses no "12 meses até"; Gemma conta
+  "últimos 12 meses" por dias (23/11/2025–22/11/2026, 11 meses completos). Escolher modelo pelo
+  planejador exige perguntas ambíguas e fora do catálogo (semana 4: esclarecimento).
+- [x] Red team achou brecha no guardrail: `getenv()` passava (no DuckDB do Python a função não
+  existe, mas o guardrail não pode depender do motor). Nova regra `no_introspection`: `getenv`,
+  `current_setting`, `duckdb_*`, `pragma_*`.
+- [ ] Tolerância de 0,02 p.p. deixa passar IPCA somado em janela curta (abr–set/2025: 1,56 vs
+  1,569). O verificador pega pelo método; o golden aceita pelo número. Decidir se a correção
+  exige método certo, não só número na tolerância.
+- [ ] Falhas sem resposta no SQL livre (28/248): erro de binder (8), zero linhas (7), JSON
+  ausente (3), sintaxe (2). Medir se uma segunda tentativa com o erro no prompt recupera.
 - [x] Saída estruturada: o Gemma 3 12B recusa `format: date` no JSON schema (xgrammar). O
   `LLMClient` remove `title`/`format` do schema e cai para JSON no prompt se o provedor recusar.
   Com isso os 8 modelos ficam em modo constrained.

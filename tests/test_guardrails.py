@@ -19,6 +19,9 @@ BLOCKED = [
     ("SELECT * FROM users", "table_allowlist"),
     ("SELECT * FROM information_schema.tables", "table_allowlist"),
     ("SELECT * FROM other_db.main.obs", "table_allowlist"),
+    ("SELECT getenv('DATABRICKS_TOKEN')", "no_introspection"),
+    ("SELECT current_setting('enable_external_access')", "no_introspection"),
+    ("SELECT duckdb_version_x()", "no_introspection"),
 ]
 
 

@@ -25,6 +25,11 @@ _FORBIDDEN_FUNCS = {
     "query_table",
 }
 
+# Functions that expose the host or engine rather than the data: environment variables (may hold
+# credentials), engine settings. Found by red-teaming: getenv() passed every other rule.
+_INTROSPECTION_FUNCS = {"getenv", "current_setting"}
+_INTROSPECTION_PREFIXES = ("duckdb_", "pragma_")
+
 
 class GuardrailError(ValueError):
     def __init__(self, rule: str, detail: str):
@@ -73,6 +78,8 @@ def check(sql: str, dialect: str = "duckdb") -> CheckedSQL:
         name = (func.sql_name() if not isinstance(func, exp.Anonymous) else func.name).lower()
         if name in _FORBIDDEN_FUNCS:
             raise GuardrailError("no_file_access", f"function {name}() not allowed")
+        if name in _INTROSPECTION_FUNCS or name.startswith(_INTROSPECTION_PREFIXES):
+            raise GuardrailError("no_introspection", f"function {name}() not allowed")
 
     cte_names = {cte.alias_or_name.lower() for cte in tree.find_all(exp.CTE)}
     tables = set()

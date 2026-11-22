@@ -28,6 +28,7 @@ def test_every_operator_produces_mutants(catalog):
         "series_swap",
         "fisher_as_subtraction",
         "period_shift",
+        "window_off_by_one",
     }
 
 
@@ -58,8 +59,12 @@ def test_fisher_subtraction_needs_differential_layer(con, catalog):
 def test_report_runs_end_to_end(con, catalog):
     result = run(PLANS, catalog, con)
     text = format_report(result)
-    assert "rate_summed" in text and "false alarms" in text
+    assert "rate_summed" in text and "False alarms" in text
     assert result["static_false_alarms"] == 0
+    assert result["period_false_alarms"] == 0
+    # The period layer closes the gap the differential leaves on a flat series.
+    shift = result["operators"]["period_shift"]
+    assert shift.caught_period == shift.total
 
 
 def test_shift_month_crosses_year():
