@@ -1,0 +1,75 @@
+# Databricks Asset Bundle: data pipeline for macro-sql-br on Free Edition (serverless only).
+#
+#   databricks bundle validate
+#   databricks bundle deploy
+#   databricks bundle run ingest_sgs
+#
+# The workspace host comes from the DEFAULT CLI profile (~/.databrickscfg), never from this file.
+
+bundle:
+  name: macro-sql-br
+
+variables:
+  catalog:
+    description: Unity Catalog catalog (Free Edition ships with `workspace`).
+    default: workspace
+  ingest_start:
+    description: First reference date fetched from SGS on every run (full history, append-only).
+    default: "2000-01-01"
+
+artifacts:
+  macrosql:
+    type: whl
+    build: uv build --wheel
+    path: .
+
+resources:
+  schemas:
+    macro_bronze:
+      catalog_name: ${var.catalog}
+      name: macro_bronze
+      comment: Raw BCB SGS observations as landed, append-only, stamped with ingested_at.
+
+  volumes:
+    landing:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.macro_bronze.name}
+      name: landing
+      comment: Parquet files written by each ingestion run, before loading into Delta.
+
+  jobs:
+    ingest_sgs:
+      name: macro-sql-br ingest_sgs
+      schedule:
+        quartz_cron_expression: "0 0 10 * * ?"
+        timezone_id: America/Sao_Paulo
+        pause_status: UNPAUSED
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+            dependencies:
+              - ./dist/*.whl
+      tasks:
+        - task_key: bronze_sgs
+          environment_key: default
+          spark_python_task:
+            python_file: ./pipelines/01_bronze_sgs.py
+            parameters:
+              - --catalog
+              - ${var.catalog}
+              - --schema
+              - ${resources.schemas.macro_bronze.name}
+              - --metrics
+              - ${workspace.file_path}/metrics
+              - --start
+              - ${var.ingest_start}
+
+targets:
+  dev:
+    default: true
+    mode: development
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/prod

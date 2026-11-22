@@ -14,6 +14,13 @@ uv sync
 uv run pytest
 ```
 
+Data pipeline on Databricks Free Edition (needs `databricks auth login` once):
+
+```bash
+databricks bundle deploy          # wheel + schema + volume + scheduled job
+databricks bundle run ingest_sgs   # SGS -> bronze Delta table
+```
+
 ## Layout
 
 ```
@@ -26,6 +33,7 @@ src/macrosql/
   mutations.py      seeded wrong queries; mutation_report.py scores the verifier
   ingest.py         SGS -> append-only bronze Parquet with ingested_at
   sgs.py            BCB SGS client, 10-year windows
-pipelines/          Databricks notebooks (00_egress_check.py)
+pipelines/          Databricks: 00_egress_check.py (network test), 01_bronze_sgs.py (bronze job)
+databricks.yml      Asset Bundle: wheel, schema, volume, scheduled serverless job
 tests/              unit tests on synthetic fixtures
 ```

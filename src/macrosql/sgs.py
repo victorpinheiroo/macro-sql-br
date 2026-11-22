@@ -62,7 +62,11 @@ def fetch(
                     "dataFinal": w_end.strftime("%d/%m/%Y"),
                 },
             )
-            # TODO(M1): check how SGS answers an empty window and handle it explicitly.
+            # SGS answers a window with no observations with 404 + "Value(s) not found"
+            # (checked 2026-11-22), not with an empty list. Treat that as empty; any other 404
+            # (e.g. unknown series) still raises.
+            if resp.status_code == 404 and "Value(s) not found" in resp.text:
+                continue
             resp.raise_for_status()
             out.extend(_parse(series_id, resp.json()))
         return out

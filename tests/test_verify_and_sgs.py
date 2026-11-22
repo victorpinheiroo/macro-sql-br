@@ -37,3 +37,19 @@ def test_fetch_parses_brazilian_format():
     client = httpx.Client(transport=httpx.MockTransport(handler))
     obs = sgs.fetch(432, date(2024, 1, 1), date(2024, 1, 31), client=client)
     assert obs[0].ref_date == date(2024, 1, 2) and obs[0].value == 11.75
+
+
+def test_fetch_treats_not_found_window_as_empty():
+    # Shape of the real SGS answer for a window with no data (checked 2026-11-22).
+    body = {"erro": {"statusCode": 404, "detail": "SGSNegocioException: Value(s) not found"}}
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404, json=body)))
+    assert sgs.fetch(433, date(2030, 1, 1), date(2030, 1, 31), client=client) == []
+
+
+def test_fetch_still_raises_on_other_404():
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404, text="nope")))
+    try:
+        sgs.fetch(999999, date(2024, 1, 1), date(2024, 1, 31), client=client)
+    except httpx.HTTPStatusError:
+        return
+    raise AssertionError("expected HTTPStatusError")

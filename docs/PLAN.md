@@ -13,7 +13,11 @@ antes de estender prazo.
 - Conjunto de mutações com 5 operadores + relatório (`python -m macrosql.mutation_report obs.parquet`).
 - Ingestão SGS → bronze Parquet append-only com `ingested_at` (`python -m macrosql.ingest`).
 - Teste de rede: `pipelines/00_egress_check.py` (rodar no Databricks).
-- 38 testes, todos com dados **sintéticos**.
+- 40 testes, todos com dados **sintéticos**.
+- **Bronze real no Databricks** (2026-11-22): Asset Bundle (`databricks.yml`) com job serverless
+  `ingest_sgs` agendado diariamente às 10h (BRT). Primeira carga: 10.468 linhas desde 2000-01-01
+  (432: 9.823 · 433: 322 · 4390: 323) em `<catalog>.<schema>.sgs_observations` + Parquet no volume
+  `landing`. IPCA set/out 2026 (0,82 / 0,14) confere com o IBGE (SIDRA tabela 1737).
 
 ### Linha de base do verificador (dados sintéticos, 4 consultas-semente)
 
@@ -59,8 +63,13 @@ datas literais do SQL contra o período do plano.
   alcança SGS (200), SIDRA `/values/...` (200), Tesouro Transparente (200) e PyPI (200). A raiz
   `apisidra.ibge.gov.br/` devolve 403 em qualquer lugar; o teste usa um endpoint real.
 - [ ] SGS 432 (meta Selic) devolve linhas com **data futura**: em 2026-11-22 o último ponto era
-  09/12/2026 (a meta se repete até a próxima reunião do Copom). "Último dado" precisa cortar em
-  `data <= data de coleta`; virar pergunta do golden set.
-- [ ] Confirmar códigos SGS: IPCA (433), câmbio, dívida bruta e líquida.
+  09/12/2026 (a meta se repete até a próxima reunião do Copom). A ingestão já corta em `--end` = hoje,
+  então o bronze não tem linhas futuras; a pergunta "Selic hoje" ainda vira caso do golden set.
+- [x] IPCA = SGS 433 confirmado contra a publicação do IBGE (SIDRA 1737, v63). 4390 e 432 conferem
+  com o título no portal de dados abertos do BCB.
+- [ ] Confirmar códigos SGS: câmbio, dívida bruta e líquida.
+- [x] Janela sem dados: o SGS responde **404** `Value(s) not found`, não lista vazia. `sgs.fetch`
+  trata como vazio; outro 404 continua levantando erro.
+- [ ] SGS 4390 (Selic acumulada no mês) inclui o **mês corrente parcial** (em 2026-11-22, nov = 0,66
+  com o mês pela metade). Silver precisa marcar mês incompleto; vira pergunta do golden set.
 - [ ] Confirmar quais acumulados o IBGE publica para usar como oráculo.
-- [ ] Ver como o SGS responde a uma janela sem dados e tratar em `sgs.fetch`.
