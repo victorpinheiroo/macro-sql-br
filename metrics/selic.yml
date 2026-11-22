@@ -1,0 +1,15 @@
+name: selic
+label: Selic acumulada no mês
+description: >
+  Effective Selic accumulated in the month (% a.m.). Monthly series chosen so it aligns with IPCA
+  without resampling. The daily series (SGS 11, % a.d.) and the Copom target (SGS 432, % a.a.)
+  are separate metrics.
+source:
+  system: bcb_sgs
+  series_id: 4390   # verified: monthly, percent per month
+frequency: monthly
+unit: percent_per_month
+aggregation: compound
+plausibility:
+  min: 0.0
+  max: 5.0

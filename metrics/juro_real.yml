@@ -1,0 +1,10 @@
+name: juro_real
+label: Juro real ex-post (Selic vs IPCA)
+description: >
+  Ex-post real rate over a period: (1 + Selic accumulated) / (1 + IPCA accumulated) - 1.
+  Ex-ante (Selic vs Focus expectations) is a different metric and is out of scope for M1.
+derived:
+  inputs: [selic, ipca]
+  formula: "((1 + selic / 100) / (1 + ipca / 100) - 1) * 100"
+frequency: monthly
+unit: percent

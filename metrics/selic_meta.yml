@@ -1,0 +1,14 @@
+name: selic_meta
+label: Meta Selic (Copom)
+description: >
+  Copom target rate, % a.a. It is a level, not a flow: over a period you report the last value
+  (or the average), never a sum or a compounded figure.
+source:
+  system: bcb_sgs
+  series_id: 432   # verified: daily, percent per year
+frequency: daily
+unit: percent_per_year
+aggregation: last
+plausibility:
+  min: 0.0
+  max: 50.0

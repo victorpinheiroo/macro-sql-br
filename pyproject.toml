@@ -1,0 +1,33 @@
+[project]
+name = "macro-sql-br"
+version = "0.1.0"
+description = "Natural-language questions about Brazil's interest rates, inflation and public finances, answered by a governed metrics layer."
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.0",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "sqlglot>=25.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/macrosql"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

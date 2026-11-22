@@ -1,0 +1,94 @@
+"""Run the seeded-error set against the verifier and report recall per layer and false alarms."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date
+
+import duckdb
+
+from macrosql.compile import Plan, compile_plan
+from macrosql.metrics import Catalog
+from macrosql.mutations import generate
+from macrosql.verify import aggregation_mismatch, differential
+
+
+@dataclass
+class OperatorStats:
+    total: int = 0
+    caught_static: int = 0
+    caught_differential: int = 0
+    caught_any: int = 0
+    undetectable: int = 0  # mutant returned the same number as the reference on this data
+
+
+def run(plans: list[Plan], catalog: Catalog, con: duckdb.DuckDBPyConnection) -> dict:
+    stats: dict[str, OperatorStats] = defaultdict(OperatorStats)
+    for mutant in generate(plans, catalog):
+        s = stats[mutant.operator]
+        s.total += 1
+        static = bool(aggregation_mismatch(mutant.mutant_sql, catalog))
+        ref = con.execute(mutant.reference_sql).fetchone()[0]
+        got = con.execute(mutant.mutant_sql).fetchone()[0]
+        if ref is None or got is None:
+            diff = got is not ref
+        else:
+            diff = bool(differential(got, ref))
+            if not diff and not static:
+                s.undetectable += 1
+        s.caught_static += static
+        s.caught_differential += diff
+        s.caught_any += static or diff
+
+    correct = [compile_plan(p, catalog) for p in plans]
+    false_alarms = sum(bool(aggregation_mismatch(sql, catalog)) for sql in correct)
+    return {
+        "operators": dict(stats),
+        "correct_queries": len(correct),
+        "static_false_alarms": false_alarms,
+    }
+
+
+def format_report(result: dict) -> str:
+    lines = [
+        "| operator | mutants | static | differential | any |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for op, s in sorted(result["operators"].items()):
+        lines.append(
+            f"| {op} | {s.total} | {s.caught_static} | {s.caught_differential} | {s.caught_any} |"
+        )
+    lines.append(
+        f"\nStatic false alarms on correct queries: "
+        f"{result['static_false_alarms']}/{result['correct_queries']}"
+    )
+    return "\n".join(lines)
+
+
+SEED_PLANS = [
+    # Correct plans used as seeds. Replace with the golden set once it exists.
+    Plan(metrics=["ipca"], start=date(2024, 1, 1), end=date(2024, 12, 31)),
+    Plan(metrics=["selic"], start=date(2024, 1, 1), end=date(2024, 6, 30)),
+    Plan(metrics=["selic_meta"], start=date(2025, 1, 1), end=date(2025, 3, 31)),
+    Plan(metrics=["juro_real"], start=date(2023, 1, 1), end=date(2023, 12, 31)),
+]
+
+
+def main() -> None:
+    """python -m macrosql.mutation_report path/to/obs.parquet"""
+    import sys
+    from pathlib import Path
+
+    from macrosql.metrics import load_catalog
+
+    if len(sys.argv) != 2:
+        sys.exit("usage: python -m macrosql.mutation_report <obs.parquet>")
+    con = duckdb.connect()
+    con.execute("CREATE VIEW obs AS SELECT * FROM read_parquet(?)", [sys.argv[1]])
+    catalog = load_catalog(Path(__file__).resolve().parents[2] / "metrics")
+    print(format_report(run(SEED_PLANS, catalog, con)))
+
+
+if __name__ == "__main__":
+    main()

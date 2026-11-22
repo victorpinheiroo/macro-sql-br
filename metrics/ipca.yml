@@ -1,0 +1,12 @@
+name: ipca
+label: IPCA - variação mensal
+description: Consumer price inflation (IPCA), monthly change. Accumulated over a period by compounding.
+source:
+  system: bcb_sgs
+  series_id: 433   # TODO(M1): confirm against dadosabertos.bcb.gov.br before first ingest
+frequency: monthly
+unit: percent_per_month
+aggregation: compound
+plausibility:
+  min: -3.0
+  max: 5.0
