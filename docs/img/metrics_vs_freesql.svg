@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" role="img" aria-labelledby="t d" font-family="system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<title id="t">Correct answers per model: metrics path vs free SQL</title>
+<desc id="d">Out of 31 golden questions. Metrics path 245/248 overall, free SQL 78/248.</desc>
+<style>
+  :root { --bg:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --grid:#e4e3df; --m:#2a78d6; --f:#eb6834; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --grid:#383835; --m:#3987e5; --f:#d95926; }
+  }
+  .bg { fill: var(--bg); } .t1 { fill: var(--ink); } .t2 { fill: var(--ink2); }
+  .grid { stroke: var(--grid); stroke-width: 1; } .link { stroke: var(--ink2); stroke-width: 2; opacity: .45; }
+  .m { fill: var(--m); stroke: var(--bg); stroke-width: 2; } .f { fill: var(--f); stroke: var(--bg); stroke-width: 2; }
+</style>
+<rect class="bg" width="760" height="420" rx="8"/>
+<text class="t1" x="24" y="32" font-size="17" font-weight="600">Same 8 free models, same questions: who writes the arithmetic matters</text>
+<text class="t2" x="24" y="54" font-size="13">Correct answers out of 31 golden questions (expected values from IBGE and the BCB calculator)</text>
+<circle class="m" cx="30" cy="74" r="6"/>
+<text class="t2" x="42" y="78" font-size="12">LLM picks metrics, deterministic layer computes (245/248)</text>
+<circle class="f" cx="370" cy="74" r="6"/>
+<text class="t2" x="382" y="78" font-size="12">LLM writes the SQL (78/248)</text>
+<line class="grid" x1="150.0" y1="94" x2="150.0" y2="364"/>
+<text class="t2" x="150.0" y="382" font-size="11" text-anchor="middle">0</text>
+<line class="grid" x1="241.9" y1="94" x2="241.9" y2="364"/>
+<text class="t2" x="241.9" y="382" font-size="11" text-anchor="middle">5</text>
+<line class="grid" x1="333.9" y1="94" x2="333.9" y2="364"/>
+<text class="t2" x="333.9" y="382" font-size="11" text-anchor="middle">10</text>
+<line class="grid" x1="425.8" y1="94" x2="425.8" y2="364"/>
+<text class="t2" x="425.8" y="382" font-size="11" text-anchor="middle">15</text>
+<line class="grid" x1="517.7" y1="94" x2="517.7" y2="364"/>
+<text class="t2" x="517.7" y="382" font-size="11" text-anchor="middle">20</text>
+<line class="grid" x1="609.7" y1="94" x2="609.7" y2="364"/>
+<text class="t2" x="609.7" y="382" font-size="11" text-anchor="middle">25</text>
+<line class="grid" x1="720.0" y1="94" x2="720.0" y2="364"/><text class="t2" x="720.0" y="382" font-size="11" text-anchor="middle">31</text>
+<text class="t1" x="138" y="117.0" font-size="13" text-anchor="end">Qwen 3.5 122B</text>
+<line class="link" x1="536.1" y1="113.0" x2="720.0" y2="113.0"/>
+<circle class="f" cx="536.1" cy="113.0" r="6"><title>Qwen 3.5 122B: free SQL 21/31</title></circle>
+<circle class="m" cx="720.0" cy="113.0" r="6"><title>Qwen 3.5 122B: metrics path 31/31</title></circle>
+<text class="t2" x="526.1" y="117.0" font-size="11" text-anchor="end">21</text>
+<text class="t1" x="138" y="151.0" font-size="13" text-anchor="end">GPT-OSS 120B</text>
+<line class="link" x1="389.0" y1="147.0" x2="720.0" y2="147.0"/>
+<circle class="f" cx="389.0" cy="147.0" r="6"><title>GPT-OSS 120B: free SQL 13/31</title></circle>
+<circle class="m" cx="720.0" cy="147.0" r="6"><title>GPT-OSS 120B: metrics path 31/31</title></circle>
+<text class="t2" x="379.0" y="151.0" font-size="11" text-anchor="end">13</text>
+<text class="t1" x="138" y="185.0" font-size="13" text-anchor="end">GPT-OSS 20B</text>
+<line class="link" x1="333.9" y1="181.0" x2="720.0" y2="181.0"/>
+<circle class="f" cx="333.9" cy="181.0" r="6"><title>GPT-OSS 20B: free SQL 10/31</title></circle>
+<circle class="m" cx="720.0" cy="181.0" r="6"><title>GPT-OSS 20B: metrics path 31/31</title></circle>
+<text class="t2" x="323.9" y="185.0" font-size="11" text-anchor="end">10</text>
+<text class="t1" x="138" y="219.0" font-size="13" text-anchor="end">Qwen3-Next 80B</text>
+<line class="link" x1="315.5" y1="215.0" x2="720.0" y2="215.0"/>
+<circle class="f" cx="315.5" cy="215.0" r="6"><title>Qwen3-Next 80B: free SQL 9/31</title></circle>
+<circle class="m" cx="720.0" cy="215.0" r="6"><title>Qwen3-Next 80B: metrics path 31/31</title></circle>
+<text class="t2" x="305.5" y="219.0" font-size="11" text-anchor="end">9</text>
+<text class="t1" x="138" y="253.0" font-size="13" text-anchor="end">Llama 3.3 70B</text>
+<line class="link" x1="297.1" y1="249.0" x2="720.0" y2="249.0"/>
+<circle class="f" cx="297.1" cy="249.0" r="6"><title>Llama 3.3 70B: free SQL 8/31</title></circle>
+<circle class="m" cx="720.0" cy="249.0" r="6"><title>Llama 3.3 70B: metrics path 31/31</title></circle>
+<text class="t2" x="287.1" y="253.0" font-size="11" text-anchor="end">8</text>
+<text class="t1" x="138" y="287.0" font-size="13" text-anchor="end">Llama 4 Maverick</text>
+<line class="link" x1="297.1" y1="283.0" x2="720.0" y2="283.0"/>
+<circle class="f" cx="297.1" cy="283.0" r="6"><title>Llama 4 Maverick: free SQL 8/31</title></circle>
+<circle class="m" cx="720.0" cy="283.0" r="6"><title>Llama 4 Maverick: metrics path 31/31</title></circle>
+<text class="t2" x="287.1" y="287.0" font-size="11" text-anchor="end">8</text>
+<text class="t1" x="138" y="321.0" font-size="13" text-anchor="end">Gemma 3 12B</text>
+<line class="link" x1="278.7" y1="317.0" x2="701.6" y2="317.0"/>
+<circle class="f" cx="278.7" cy="317.0" r="6"><title>Gemma 3 12B: free SQL 7/31</title></circle>
+<circle class="m" cx="701.6" cy="317.0" r="6"><title>Gemma 3 12B: metrics path 30/31</title></circle>
+<text class="t2" x="268.7" y="321.0" font-size="11" text-anchor="end">7</text>
+<text class="t1" x="138" y="355.0" font-size="13" text-anchor="end">Llama 3.1 8B</text>
+<line class="link" x1="186.8" y1="351.0" x2="683.2" y2="351.0"/>
+<circle class="f" cx="186.8" cy="351.0" r="6"><title>Llama 3.1 8B: free SQL 2/31</title></circle>
+<circle class="m" cx="683.2" cy="351.0" r="6"><title>Llama 3.1 8B: metrics path 29/31</title></circle>
+<text class="t2" x="176.8" y="355.0" font-size="11" text-anchor="end">2</text>
+<text class="t2" x="24" y="408" font-size="11">Source: evals/results/freesql.md (week 3, metrics path with planner@1). Free SQL gets a data dictionary, not the metric rules.</text>
+</svg>

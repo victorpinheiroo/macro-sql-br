@@ -15,7 +15,9 @@ models make with financial time series.
 
 | | metrics path (LLM picks metrics) | free SQL (LLM writes the SQL) |
 | --- | --- | --- |
-| correct answers | **244/248 (98%)** | **78/248 (31%)**, from 2/31 to 21/31 per model |
+| correct answers | **245/248 (99%)** | **78/248 (31%)**, from 2/31 to 21/31 per model |
+
+![Correct answers per model: metrics path vs free SQL](docs/img/metrics_vs_freesql.svg)
 
 | verifier on the 142 wrong free-SQL answers | caught |
 | --- | --- |
