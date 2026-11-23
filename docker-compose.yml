@@ -28,6 +28,11 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # So `docker compose up --wait` returns only once Streamlit actually serves.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 5s
+      retries: 20
 
   ollama:
     profiles: ["ollama"]
