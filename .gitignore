@@ -28,3 +28,6 @@ Thumbs.db
 
 # LLM response cache
 .cache/
+
+# Local tooling
+.claude/

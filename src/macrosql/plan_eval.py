@@ -1,126 +1,94 @@
-"""Planner + metrics path, end to end, per model, on the golden set.
+"""End-to-end eval per model: question -> route -> number, on the whole golden set.
 
     python -m macrosql.plan_eval                      # models from config/models.yml
     python -m macrosql.plan_eval --models databricks-gpt-oss-120b
 
-For each model and golden question: ask the planner for a Plan, compile it, run it on the gold
-snapshot and compare with the external oracle. Reports, per model:
-  valid   share of questions that produced a schema- and catalog-valid Plan
-  exact   share whose Plan equals the hand-written one (metrics and dates)
-  correct share whose final number is within the oracle's tolerance
-Writes evals/results/planner.md (table) and planner.jsonl (every case, for later analysis).
+Every golden question goes through `ask()` exactly as the API runs it. A case is correct when the
+path matches the expected one (metrics, free_sql, clarify, unavailable, out_of_scope) and, for
+the two answering paths, the number is within the oracle's tolerance.
+Writes evals/results/planner.md (table) and planner.jsonl (every case).
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import statistics
 import sys
-from datetime import date
 from pathlib import Path
 
 import yaml
 
-from macrosql.golden import connect, load_cases, run_case
+from macrosql.ask import Context, ask
+from macrosql.golden import load_cases
 from macrosql.llm import make_client
-from macrosql.metrics import load_catalog
-from macrosql.plan import SeriesStatus, load_prompt, make_plan
+from macrosql.plan import load_prompt
+
+GROUPS = {
+    "metrics": "metrics",
+    "free_sql": "free SQL",
+    "clarify": "clarify",
+    "unavailable": "decline",
+    "out_of_scope": "decline",
+}
 
 
-def load_status(path: Path) -> tuple[date, list[SeriesStatus]]:
-    """'Today' is the snapshot's collection date, so prompts (and the cache) are reproducible."""
-    with path.open(encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-    today = max(date.fromisoformat(r["collected_at"][:10]) for r in rows)
-    status = [
-        SeriesStatus(r["metric"], date.fromisoformat(r["last_complete_ref_date"]))
-        for r in sorted(rows, key=lambda r: r["metric"])
-    ]
-    return today, status
-
-
-def evaluate(model: str, cases, con, catalog, today, status, prompt, cache_dir) -> list[dict]:
-    client = make_client(model, cache_dir=cache_dir)
+def evaluate(model: str, cases, data: Path, cache_dir) -> list[dict]:
+    ctx = Context.from_snapshot(data, make_client(model, cache_dir=cache_dir))
     rows = []
     for case in cases:
-        try:
-            pr = make_plan(case.question, client, catalog, case.as_of or today, status, prompt)
-        except Exception as e:  # provider error = failed case, run continues
-            rows.append(
-                {
-                    "model": model,
-                    "id": case.id,
-                    "trap": case.trap,
-                    "difficulty": case.difficulty,
-                    "valid": False,
-                    "exact": False,
-                    "correct": False,
-                    "provider_error": True,
-                    "expected_plan": case.plan.model_dump(mode="json"),
-                    "error": f"{type(e).__name__}: {e}".split("\n")[0][:200],
-                }
-            )
-            continue
-        r = pr.response
-        row = {
-            "model": model,
-            "id": case.id,
-            "trap": case.trap,
-            "difficulty": case.difficulty,
-            "valid": pr.plan is not None,
-            "exact": pr.plan == case.plan,
-            "correct": False,
-            "plan": pr.plan.model_dump(mode="json") if pr.plan else None,
-            "expected_plan": case.plan.model_dump(mode="json"),
-            "error": pr.error,
-            "structured_mode": r.structured_mode,
-            "latency_ms": r.latency_ms,
-            "cached": r.cached,
-            "input_tokens": r.input_tokens,
-            "output_tokens": r.output_tokens,
-        }
-        if pr.plan is not None:
-            res = run_case(case.model_copy(update={"plan": pr.plan}), con, catalog)
-            row["correct"] = res.passed
-            row["got"] = res.got
-        rows.append(row)
+        a = ask(case.question, ctx, today=case.as_of)
+        value = None
+        correct = a.path == case.expected_path
+        if correct and case.expected:
+            ((metric, exp_value),) = case.expected.items()
+            key = metric if a.path == "metrics" else "answer"
+            value = (a.values or {}).get(key)
+            correct = value is not None and abs(value - exp_value) <= case.tolerance_pp
+        rows.append(
+            {
+                "model": model,
+                "id": case.id,
+                "trap": case.trap,
+                "difficulty": case.difficulty,
+                "expected_path": case.expected_path,
+                "path": a.path,
+                "route_ok": a.path == case.expected_path,
+                "correct": correct,
+                "value": value,
+                "plan": a.plan.model_dump(mode="json") if a.plan else None,
+                "expected_plan": case.plan.model_dump(mode="json") if case.plan else None,
+                "exact": bool(case.plan and a.plan == case.plan),
+                "options": a.options,
+                "message": a.message,
+                "confidence": a.confidence.score,
+                "latency_ms": a.llm_latency_ms,
+            }
+        )
     return rows
 
 
 def summarize(rows: list[dict], models: list[str], n_cases: int, prompt_key: str) -> str:
+    groups = list(dict.fromkeys(GROUPS.values()))
     out = [
-        f"Planner `{prompt_key}` on the golden set ({n_cases} questions, metrics path; "
-        "basic = v1, hard = relative dates, paraphrases, custom windows). "
-        "Numbers are shares of questions.",
+        f"End to end on the golden set ({n_cases} questions), planner `{prompt_key}`. A case is "
+        "correct when the route matches and, when a number is expected, it is within tolerance.",
         "",
-        "| model | correct: all | basic | hard | valid plan | exact plan | provider errors | "
-        "structured output | median latency (s) | mean tokens in/out |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| model | correct | " + " | ".join(groups) + " | route ok | median model time (s) |",
+        "| --- | --- | " + " | ".join("---" for _ in groups) + " | --- | --- |",
     ]
     for m in models:
         rs = [r for r in rows if r["model"] == m]
-
-        def pct(k: str, rs: list[dict] = rs) -> str:
-            return f"{sum(r[k] for r in rs)}/{len(rs)}"
-
-        # Cached responses keep the latency measured when they were first produced.
+        cells = []
+        for g in groups:
+            sub = [r for r in rs if GROUPS[r["expected_path"]] == g]
+            cells.append(f"{sum(r['correct'] for r in sub)}/{len(sub)}")
         lat = [r["latency_ms"] for r in rs if r.get("latency_ms")]
-        modes = sorted({r.get("structured_mode") for r in rs if r.get("structured_mode")})
-        tin = [r["input_tokens"] for r in rs if r.get("input_tokens")] or [0]
-        tout = [r["output_tokens"] for r in rs if r.get("output_tokens")] or [0]
-        median_s = f"{statistics.median(lat) / 1000:.1f}" if lat else "n/a"
-
-        def by(level: str, rs: list[dict] = rs) -> str:
-            sub = [r for r in rs if r.get("difficulty", "basic") == level]
-            return f"{sum(r['correct'] for r in sub)}/{len(sub)}"
-
+        med = f"{statistics.median(lat) / 1000:.1f}" if lat else "n/a"
         out.append(
-            f"| {m} | {pct('correct')} | {by('basic')} | {by('hard')} | {pct('valid')} | "
-            f"{pct('exact')} | {sum(bool(r.get('provider_error')) for r in rs)} | "
-            f"{', '.join(modes)} | {median_s} | "
-            f"{statistics.mean(tin):.0f} / {statistics.mean(tout):.0f} |"
+            f"| {m} | **{sum(r['correct'] for r in rs)}/{len(rs)}** | "
+            + " | ".join(cells)
+            + f" | {sum(r['route_ok'] for r in rs)}/{len(rs)} | {med} |"
         )
     misses = [r for r in rows if not r["correct"]]
     if misses:
@@ -128,13 +96,17 @@ def summarize(rows: list[dict], models: list[str], n_cases: int, prompt_key: str
             "",
             "Misses:",
             "",
-            "| model | id | trap | got plan | expected plan | error |",
+            "| model | id | trap | expected | got | detail |",
             "| --- | --- | --- | --- | --- | --- |",
         ]
         for r in misses:
+            detail = r["message"] or ""
+            if r["path"] == "metrics" and r["plan"]:
+                detail = f"plan {json.dumps(r['plan'])} value {r['value']}"
+            detail = detail.replace("|", "/")[:160]
             out.append(
-                f"| {r['model']} | {r['id']} | {r.get('trap', '')} | `{json.dumps(r.get('plan'))}` "
-                f"| `{json.dumps(r.get('expected_plan'))}` | {r.get('error') or ''} |"
+                f"| {r['model']} | {r['id']} | {r['trap']} | {r['expected_path']} | {r['path']} "
+                f"| {detail} |"
             )
     return "\n".join(out)
 
@@ -145,23 +117,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--config", type=Path, default=Path("config/models.yml"))
     p.add_argument("--golden", type=Path, default=Path("evals/golden.jsonl"))
     p.add_argument("--data", type=Path, default=Path("data/snapshot"))
-    p.add_argument("--metrics", type=Path, default=Path("metrics"))
     p.add_argument("--out", type=Path, default=Path("evals/results"))
     p.add_argument("--no-cache", action="store_true")
     args = p.parse_args(argv)
 
     models = args.models or yaml.safe_load(args.config.read_text(encoding="utf-8"))["eval"]
-    catalog = load_catalog(args.metrics)
     cases = load_cases(args.golden)
-    con = connect(args.data / "obs.csv")
-    today, status = load_status(args.data / "series_status.csv")
     prompt = load_prompt()
     cache_dir = None if args.no_cache else Path(".cache/llm")
-
     rows = []
     for m in models:
         print(f"{m} ...", file=sys.stderr)
-        rows += evaluate(m, cases, con, catalog, today, status, prompt, cache_dir)
+        rows += evaluate(m, cases, args.data, cache_dir)
 
     args.out.mkdir(parents=True, exist_ok=True)
     with (args.out / "planner.jsonl").open("w", encoding="utf-8", newline="\n") as f:

@@ -19,3 +19,22 @@ jobs:
       - run: uv run pytest -q
       - name: golden set (metrics path, gold snapshot)
         run: uv run python -m macrosql.golden evals/golden.jsonl --data data/snapshot/obs.csv
+
+  docker:
+    # `docker compose up` must answer with no Databricks account and no model:
+    # health, catalog, a deterministic computation and the Streamlit page.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --wait api app
+      - name: smoke test
+        run: |
+          set -e
+          curl -fsS localhost:8000/healthz
+          curl -fsS localhost:8000/v1/metrics | grep -q '"selic_meta"'
+          curl -fsS -X POST localhost:8000/v1/compute -H 'content-type: application/json' \
+            -d '{"metrics":["ipca"],"start":"2024-01-01","end":"2024-12-31"}' > compute.json
+          python3 -c "import json; v=json.load(open('compute.json'))['values']['ipca']; assert abs(v-4.83) < 0.02, v; print('ipca 2024', v)"
+          curl -fsS -o /dev/null -w "app %{http_code}\n" localhost:8501
+      - if: failure()
+        run: docker compose logs

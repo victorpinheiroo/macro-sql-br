@@ -203,7 +203,60 @@ class CachedClient:
         return resp
 
 
-def make_client(model: str, cache_dir: Path | None = Path(".cache/llm")) -> LLMClient:
-    """`model` is a Databricks serving endpoint name today; other providers plug in here."""
-    client: LLMClient = DatabricksClient(model)
+class OllamaClient:
+    """Local models through Ollama (offline mode, Docker). JSON schema goes in `format`."""
+
+    provider = "ollama"
+
+    def __init__(self, model: str, host: str | None = None, timeout: float = 300):
+        import os
+
+        self.model = model
+        self._host = (host or os.environ.get("OLLAMA_HOST", "http://localhost:11434")).rstrip("/")
+        self._http = httpx.Client(timeout=timeout)
+
+    def complete(self, messages, schema=None, tools=None, cache_key=None) -> Response:
+        if tools:
+            raise NotImplementedError("tool calling arrives with project C")
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [m.model_dump() for m in messages],
+            "stream": False,
+            "options": {"temperature": 0},
+        }
+        if schema is not None:
+            payload["format"] = json_schema(schema)
+        t0 = time.perf_counter()
+        resp = self._http.post(f"{self._host}/api/chat", json=payload)
+        resp.raise_for_status()
+        body = resp.json()
+        text = body["message"]["content"]
+        out = Response(
+            text=text,
+            provider=self.provider,
+            model=self.model,
+            input_tokens=body.get("prompt_eval_count"),
+            output_tokens=body.get("eval_count"),
+            latency_ms=int((time.perf_counter() - t0) * 1000),
+            structured_mode="constrained" if schema is not None else "none",
+        )
+        if schema is not None:
+            out.parsed, out.parse_error = parse_json(text, schema)
+        return out
+
+
+def make_client(
+    model: str, cache_dir: Path | None = Path(".cache/llm"), provider: str | None = None
+) -> LLMClient:
+    """`provider:model` or (provider, model). Default provider: databricks.
+
+    Examples: "databricks-meta-llama-3-3-70b-instruct", "ollama:qwen2.5:3b".
+    """
+    if provider is None:
+        provider, _, rest = model.partition(":")
+        if provider in ("ollama", "databricks") and rest:
+            model = rest
+        else:
+            provider = "databricks"
+    client: LLMClient = OllamaClient(model) if provider == "ollama" else DatabricksClient(model)
     return CachedClient(client, cache_dir) if cache_dir else client

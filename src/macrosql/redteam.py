@@ -20,7 +20,7 @@ import yaml
 from macrosql.freesql import answer, sandbox
 from macrosql.llm import make_client
 from macrosql.metrics import load_catalog
-from macrosql.plan_eval import load_status
+from macrosql.plan import load_status
 
 
 def fingerprint(con) -> tuple:

@@ -1,0 +1,40 @@
+# docker compose up                      API + app on the committed gold snapshot.
+#                                        /v1/metrics and /v1/compute work with no account at all;
+#                                        /v1/ask needs a model provider (one of the two below).
+#
+# Databricks Free Edition models:        DATABRICKS_HOST=... DATABRICKS_TOKEN=... docker compose up
+# Fully local (no account, ~2 GB pull):  MACROSQL_MODEL=ollama:qwen2.5:3b docker compose --profile ollama up
+
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      MACROSQL_MODEL: ${MACROSQL_MODEL:-}
+      DATABRICKS_HOST: ${DATABRICKS_HOST:-}
+      DATABRICKS_TOKEN: ${DATABRICKS_TOKEN:-}
+      OLLAMA_HOST: http://ollama:11434
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build: .
+    command: ["streamlit", "run", "app/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    ports: ["8501:8501"]
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:0.5.7
+    volumes: ["ollama:/root/.ollama"]
+    # Pull the model on first start, then serve.
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 3 && ollama pull ${OLLAMA_MODEL:-qwen2.5:3b} && wait"]
+
+volumes:
+  ollama:

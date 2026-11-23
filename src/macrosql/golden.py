@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Literal
 
 import duckdb
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from macrosql.compile import OBS_TABLE, Plan, compile_plan
 from macrosql.guardrails import check
@@ -36,15 +36,24 @@ class Oracle(BaseModel):
 class GoldenCase(BaseModel):
     id: str
     question: str
-    expected_path: Literal["metrics", "free_sql", "clarify"]
+    expected_path: Literal["metrics", "free_sql", "clarify", "unavailable", "out_of_scope"]
     difficulty: Literal["basic", "hard"] = "basic"
     # For relative questions ("últimos 12 meses", "hoje"): the date the question is asked.
     as_of: date | None = None
-    plan: Plan
-    expected: dict[str, float]
-    tolerance_pp: float
-    oracle: Oracle
+    plan: Plan | None = None
+    expected: dict[str, float] | None = None
+    tolerance_pp: float | None = None
+    oracle: Oracle | None = None
     trap: str
+
+    @model_validator(mode="after")
+    def _answerable_cases_have_an_oracle(self) -> GoldenCase:
+        if self.expected_path in ("metrics", "free_sql"):
+            if not (self.expected and self.tolerance_pp is not None and self.oracle):
+                raise ValueError(f"{self.id}: needs expected, tolerance_pp and oracle")
+        if self.expected_path == "metrics" and self.plan is None:
+            raise ValueError(f"{self.id}: metrics cases need the hand-written plan")
+        return self
 
 
 class Result(BaseModel):
@@ -116,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
 
     catalog = load_catalog(args.metrics)
     con = connect(args.data)
-    results = [run_case(c, con, catalog) for c in load_cases(args.golden)]
+    cases = [c for c in load_cases(args.golden) if c.expected_path == "metrics"]
+    results = [run_case(c, con, catalog) for c in cases]
     print(report(results))
     return 0 if all(r.passed for r in results) else 1
 

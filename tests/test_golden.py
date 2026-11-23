@@ -24,7 +24,7 @@ def _with_aggregation(catalog: Catalog, metric: str, aggregation: str) -> Catalo
 def test_golden_file_is_valid_and_has_external_oracles():
     cases = load_cases(GOLDEN)
     assert len(cases) >= 15
-    assert all(c.oracle.kind != "planilha" for c in cases)
+    assert all(c.oracle.kind != "planilha" for c in cases if c.oracle)
 
 
 def test_golden_set_passes_on_snapshot():

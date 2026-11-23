@@ -35,6 +35,13 @@ antes de estender prazo.
   (acesso externo desligado, config travada, timeout). Verificador com 3ª camada, checagem de
   período por AST. Placar: métricas 244/248 vs SQL livre 78/248; verificador 142/142 nas erradas
   (119/142 sem o diferencial); red team 0 inseguras; mutações 114/114, 0/31 falso alarme.
+- **Semana 4**: planejador `planner@2` também roteia (answer, free_sql, clarify, unavailable,
+  out_of_scope); período além do último dado completo vira esclarecimento por regra
+  determinística (`ask.freshness`), não pelo modelo. `ask.py` orquestra, `confidence.py` dá nota
+  com motivos. FastAPI (`/v1/ask`, `/v1/compute`, `/v1/metrics`, `/v1/history`), Streamlit só
+  renderiza, `docker compose up` sobe API + app sem conta (Ollama opcional por perfil). Golden set
+  com 43 perguntas. Fim a fim: Qwen 3.5 122B 42/43 (novo padrão), Llama 4 Maverick 41/43, Llama
+  3.3 70B cai de 31/31 (só planejar) para 33/43 ao também rotear.
 
 ### Linha de base do verificador (dados sintéticos, 4 consultas-semente)
 
@@ -70,11 +77,19 @@ datas literais do SQL contra o período do plano.
 | 1 ✅ | Teste de rede → decidir onde roda a ingestão. Confirmar códigos SGS na fonte. Ingestão real + silver/gold. Golden set v1: 15 perguntas com oráculo externo; runner no CI | Parquet real lido pelo DuckDB; CI roda o golden set em todo PR |
 | 2 ✅ | `LLMClient` neutro + cache em disco; teste de saída estruturada nos modelos gratuitos; planejador + caminho de métricas ponta a ponta | Tabela: qual modelo devolve `Plan` válido e em que %; acurácia no golden set por modelo |
 | 3 ✅ | SQL livre + guardrails ligados; checagem de período; regras de frequência e unidade; relatório de mutações com dados reais | Placar com recall e falso alarme sobre o golden set real |
-| 4 | Esclarecimento + confiança; golden set 30+; FastAPI + Streamlit + Docker; README com números; vídeo | `docker compose up` responde sem conta Databricks; manchete na primeira tela |
+| 4 ✅ | Esclarecimento + confiança; golden set 30+; FastAPI + Streamlit + Docker; README com números; vídeo | `docker compose up` responde sem conta Databricks; manchete na primeira tela |
 
 **v1.1 (depois de publicado):** SIDRA, Tesouro, comparação com Genie, juro real ex-ante.
 
 ## Decisões pendentes
+
+- [x] Golden `f01` estava mal especificado: perguntava "qual mês" e esperava a variação (0,83).
+  Os modelos que responderam "2" (fevereiro) estavam certos. Reescrito para "qual foi a maior
+  variação mensal do IPCA em 2024?" antes da rodada final; registrado aqui por transparência.
+- [ ] `docker compose up` validado só no CI (GitHub Actions): esta máquina não tem Docker.
+- [ ] Vídeo de até 4 min com legenda em inglês (fora do código).
+- [ ] A API serializa as perguntas com um lock (uma conexão DuckDB em memória). Suficiente para
+  demo; para carga real, uma conexão por requisição sobre Parquet read-only.
 
 - [ ] **O planejador continua saturado** com 31 perguntas: 6 de 8 modelos fazem 31/31. Erros reais
   vistos: Llama 3.1 8B põe "este ano" em 2022 e usa 13 meses no "12 meses até"; Gemma conta

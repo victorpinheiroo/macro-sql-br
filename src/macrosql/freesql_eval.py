@@ -26,8 +26,7 @@ from macrosql.freesql import answer, sandbox
 from macrosql.golden import load_cases
 from macrosql.llm import make_client
 from macrosql.metrics import load_catalog
-from macrosql.plan import load_prompt, make_plan
-from macrosql.plan_eval import load_status
+from macrosql.plan import load_prompt, load_status, make_plan
 from macrosql.verify import aggregation_mismatch, differential, period_mismatch
 
 HARD_FINDINGS = {"aggregation_mismatch", "unknown_series", "period_mismatch", "differential"}
@@ -156,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
 
     models = args.models or yaml.safe_load(args.config.read_text(encoding="utf-8"))["eval"]
     catalog = load_catalog(args.metrics)
-    cases = load_cases(args.golden)
+    cases = [c for c in load_cases(args.golden) if c.expected_path == "metrics"]
     con = sandbox(args.data / "obs.csv", args.data / "series_status.csv")
     today, status = load_status(args.data / "series_status.csv")
     rows = []

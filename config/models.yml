@@ -1,7 +1,8 @@
 # Model choice lives here, never in code. Names are Databricks Free Edition serving endpoints.
-# planner: default for the app. Picked on evals/results/planner.md (planner@1): 16/16 correct,
-# lowest median latency and output tokens. Re-pick whenever the golden set or prompt changes.
-planner: databricks-meta-llama-3-3-70b-instruct
+# planner: default for the app. Picked on evals/results/planner.md (planner@2, end to end,
+# 43 questions): 42/43 correct and 43/43 routes, the best of the 8. Llama 4 Maverick (41/43, ~1 s
+# faster) is the runner-up. Re-pick whenever the golden set or a prompt changes.
+planner: databricks-qwen35-122b-a10b
 
 # Models compared by `python -m macrosql.plan_eval` when --models is not given.
 eval:

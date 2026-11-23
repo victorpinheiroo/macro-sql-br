@@ -6,9 +6,11 @@ The output is validated twice: against the JSON schema (PlannerOutput) and again
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -20,10 +22,15 @@ from macrosql.metrics import Catalog
 PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
 
 
+Action = Literal["answer", "free_sql", "clarify", "unavailable", "out_of_scope"]
+
+
 class PlannerOutput(BaseModel):
+    action: Action
     metrics: list[str]
     start: str
     end: str
+    options: list[str]
 
 
 class Prompt(BaseModel):
@@ -46,6 +53,18 @@ def load_prompt(name: str = "planner", directory: Path = PROMPTS) -> Prompt:
 class SeriesStatus:
     metric: str
     last_complete_ref_date: date
+
+
+def load_status(path: Path) -> tuple[date, list[SeriesStatus]]:
+    """'Today' is the snapshot's collection date, so prompts (and the cache) are reproducible."""
+    with path.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    today = max(date.fromisoformat(r["collected_at"][:10]) for r in rows)
+    status = [
+        SeriesStatus(r["metric"], date.fromisoformat(r["last_complete_ref_date"]))
+        for r in sorted(rows, key=lambda r: r["metric"])
+    ]
+    return today, status
 
 
 def describe_catalog(catalog: Catalog) -> str:
@@ -79,13 +98,16 @@ class PlanResult:
     plan: Plan | None
     error: str | None
     response: Response
+    action: Action | None = None
+    options: list[str] | None = None
+    period: tuple[date, date] | None = None  # for free_sql, when the model gave one
 
 
 def to_plan(raw: dict | None, catalog: Catalog) -> tuple[Plan | None, str | None]:
     if raw is None:
         return None, "no structured output"
     try:
-        plan = Plan.model_validate(raw)
+        plan = Plan.model_validate({k: raw[k] for k in ("metrics", "start", "end") if k in raw})
     except ValidationError as e:
         return None, f"plan: {e.errors()[0]['msg']}"[:300]
     unknown = [m for m in plan.metrics if m not in catalog.metrics]
@@ -107,5 +129,18 @@ def make_plan(
     resp = client.complete(msgs, schema=PlannerOutput, cache_key=prompt.key)
     if resp.parsed is None:
         return PlanResult(None, resp.parse_error or "unparseable output", resp)
-    plan, err = to_plan(resp.parsed, catalog)
-    return PlanResult(plan, err, resp)
+    raw = resp.parsed
+    action = raw.get("action", "answer")
+    options = [o for o in raw.get("options") or [] if o.strip()]
+    if action == "answer":
+        plan, err = to_plan(raw, catalog)
+        return PlanResult(plan, err, resp, action="answer")
+    if action == "clarify" and not options:
+        return PlanResult(None, "clarify without options", resp, action="clarify")
+    period = None
+    try:
+        if raw.get("start") and raw.get("end"):
+            period = (date.fromisoformat(raw["start"]), date.fromisoformat(raw["end"]))
+    except ValueError:
+        period = None
+    return PlanResult(None, None, resp, action=action, options=options, period=period)

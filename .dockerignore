@@ -1,0 +1,11 @@
+.venv
+.git
+.cache
+.pytest_cache
+.ruff_cache
+.databricks
+dist
+**/__pycache__
+data/*
+!data/snapshot
+evals/results/*.jsonl

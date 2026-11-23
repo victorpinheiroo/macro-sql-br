@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--metrics", type=Path, default=Path("metrics"))
     args = p.parse_args(argv)
 
-    plans = [c.plan for c in load_cases(args.golden)]
+    plans = [c.plan for c in load_cases(args.golden) if c.plan is not None]
     con = connect(args.data)
     print(f"Seeds: {len(plans)} golden-set plans, real data ({args.data}).\n")
     print(format_report(run(plans, load_catalog(args.metrics), con)))
